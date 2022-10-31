@@ -146,7 +146,7 @@ def load_data(train_split, val_split, root):
 
 
 # train the model
-def run(models, criterion, num_epochs=50):
+def run(models, criterion, num_epochs=50, modelkind=args.model, lr=args.lr):
     since = time.time()
 
     best_map = 0.0
@@ -163,22 +163,22 @@ def run(models, criterion, num_epochs=50):
 
             if best_map < val_map:
                 best_map = val_map
-                torch.save(model.state_dict(),'./'+str(args.model)+'/weight_epoch_'+str(args.lr)+'_'+str(epoch))
-                torch.save(model,'./'+str(args.model)+'/model_epoch_'+str(args.lr)+'_'+str(epoch))
-                print('save here:','./'+str(args.model)+'/weight_epoch_'+str(args.lr)+'_'+str(epoch))
+                torch.save(model.state_dict(),'./'+str(modelkind)+'/weight_epoch_'+str(lr)+'_'+str(epoch))
+                torch.save(model,'./'+str(modelkind)+'/model_epoch_'+str(lr)+'_'+str(epoch))
+                print('save here:','./'+str(modelkind)+'/weight_epoch_'+str(lr)+'_'+str(epoch))
 
-def eval_model(model, dataloader, baseline=False):
+def eval_model(model, dataloader, baseline=False, modelkind=args.model):
     results = {}
     for data in dataloader:
         other = data[3]
-        outputs, loss, probs, _ = run_network(model, data, 0, baseline)
+        outputs, loss, probs, _ = run_network(model, data, 0, baseline, modelkind)
         fps = outputs.size()[1] / other[1][0]
 
         results[other[0][0]] = (outputs.data.cpu().numpy()[0], probs.data.cpu().numpy()[0], data[2].numpy()[0], fps)
     return results
 
 
-def run_network(model, data, gpu, epoch=0, baseline=False):
+def run_network(model, data, gpu, epoch=0, baseline=False, modelkind=args.model):
     inputs, mask, labels, other = data
     # wrap them in Variable
     inputs = Variable(inputs.cuda(gpu))
@@ -197,7 +197,7 @@ def run_network(model, data, gpu, epoch=0, baseline=False):
     
     outputs_final = activation
 
-    if args.model=="PDAN":
+    if modelkind=="PDAN":
         # print('outputs_final1', outputs_final.size())
         outputs_final = outputs_final[:,0,:,:]
     # print('outputs_final',outputs_final.size())
@@ -294,7 +294,7 @@ if __name__ == '__main__':
         print('RGB mode', rgb_root)
         dataloaders, datasets = load_data(train_split, test_split, rgb_root)
 
-    if args.train:
+    # model definition
         num_channel = args.num_channel
         if args.mode == 'skeleton':
             input_channnel = 256
@@ -315,9 +315,9 @@ if __name__ == '__main__':
 
         if args.load_model!= "False":
             # entire model
-            model = torch.load(args.load_model)
+        # model = torch.load(args.load_model)
             # weight
-            # model.load_state_dict(torch.load(str(args.load_model)))
+        model.load_state_dict(torch.load(str(args.load_model)))
             print("loaded",args.load_model)
 
         pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -325,12 +325,43 @@ if __name__ == '__main__':
         print('num_channel:', num_channel, 'input_channnel:', input_channnel,'num_classes:', num_classes)
         model.cuda()
 
+    if args.train:
         criterion = nn.NLLLoss(reduce=False)
         lr = float(args.lr)
         print(lr)
         optimizer = optim.Adam(model.parameters(), lr=lr)
         lr_sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=8, verbose=True)
         run([(model, 0, dataloaders, optimizer, lr_sched, args.comp_info)], criterion, num_epochs=int(args.epoch))
+
+    else:
+        def compact(per_class_probs_per_frame: np.ndarray):
+            actions = list()
+            longest = 0
+            top_class = np.argmax(per_class_probs_per_frame, axis=1)
+            for class_id in range(classes):
+                class_idx = np.where(top_class == class_id)[0]
+                if(len(class_idx) == 0):
+                    continue
+                ranges = np.split(class_idx, np.where(np.diff(class_idx) != 1)[0]+1)
+                for period in ranges:
+                    if len(period) > longest:
+                        longest = len(period)
+                    actions.append({
+                        "class": class_id,
+                        "start": int(period[0]),
+                        "end": int(period[-1]),
+                        "confidence": float(np.mean(per_class_probs_per_frame[period[0]:period[-1]+1, class_id]))
+                    })
+            actions.sort(key=lambda a: a["start"])
+            print("longest john", longest)
+            return actions
+
+        results = eval_model(model, dataloaders['val'])
+        print("eval done, generating report")
+        results = {video_name: compact(values[1]) for video_name, values in results.items()}
+        with open("logga.json", mode="w") as logfile:
+            # print(results, file=logfile)
+            json.dump(results, fp=logfile)
 
 
 
