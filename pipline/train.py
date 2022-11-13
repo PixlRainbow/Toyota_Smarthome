@@ -300,35 +300,35 @@ if __name__ == '__main__':
         dataloaders, datasets = load_data(train_split, test_split, rgb_root)
 
     # model definition
-        num_channel = args.num_channel
-        if args.mode == 'skeleton':
-            input_channnel = 256
-        else:
-            input_channnel = 1024
+    num_channel = args.num_channel
+    if args.mode == 'skeleton':
+        input_channnel = 256
+    else:
+        input_channnel = 1024
 
-        num_classes = classes
-        mid_channel=int(args.num_channel)
-
-
-        if args.model=="PDAN":
-            print("you are processing PDAN")
-            from models import PDAN as Net
-            model = Net(num_stages=1, num_layers=5, num_f_maps=mid_channel, dim=input_channnel, num_classes=classes)
+    num_classes = classes
+    mid_channel=int(args.num_channel)
 
 
-        model=torch.nn.DataParallel(model)
+    if args.model=="PDAN":
+        print("you are processing PDAN")
+        from models import PDAN as Net
+        model = Net(num_stages=1, num_layers=5, num_f_maps=mid_channel, dim=input_channnel, num_classes=classes)
 
-        if args.load_model!= "False":
-            # entire model
+
+    model=torch.nn.DataParallel(model)
+
+    if args.load_model!= "False":
+        # entire model
         # model = torch.load(args.load_model)
-            # weight
+        # weight
         model.load_state_dict(torch.load(str(args.load_model)))
-            print("loaded",args.load_model)
+        print("loaded",args.load_model)
 
-        pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print('pytorch_total_params', pytorch_total_params)
-        print('num_channel:', num_channel, 'input_channnel:', input_channnel,'num_classes:', num_classes)
-        model.cuda()
+    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print('pytorch_total_params', pytorch_total_params)
+    print('num_channel:', num_channel, 'input_channnel:', input_channnel,'num_classes:', num_classes)
+    model.cuda()
 
     if args.train:
         criterion = nn.NLLLoss(reduce=False)
