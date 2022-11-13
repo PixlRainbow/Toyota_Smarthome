@@ -37,6 +37,7 @@ parser.add_argument('-batch_size', type=str, default='False')
 parser.add_argument('-kernelsize', type=str, default='False')
 parser.add_argument('-feat', type=str, default='False')
 parser.add_argument('-split_setting', type=str, default='CS')
+parser.add_argument('-num_classes', type=str, default='51')
 args = parser.parse_args()
 
 import torch
@@ -97,6 +98,10 @@ if args.dataset == 'TSU':
     
     rgb_root = '/data/stars/user/rdai/smarthome_untrimmed/features/i3d_16frames_64000_SSD'
     skeleton_root='/skeleton/feat/Path/' # 
+
+else:
+    classes = int(args.num_classes)
+
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
