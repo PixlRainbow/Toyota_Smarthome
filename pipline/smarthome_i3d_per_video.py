@@ -75,6 +75,12 @@ class TSU(data_utl.Dataset):
             feat = self.in_mem[entry[0]]
         else:
             feat = np.load(os.path.join(self.root, entry[0]+'.npy'))
+            # v-iashin i3d extractor saves files as float64 instead of float32
+            feat = np.float32(feat)
+            # v-iashin i3d extractor generates arrays with dimension (T x C)
+            # instead of (T x H x W x C) like original i3d
+            # so expand_dims is used to add missing dimensions
+            feat = np.expand_dims(feat, (1,2))
             feat = feat.reshape((feat.shape[0],1,1,1024))
             #r = np.random.randint(0,10)
             #feat = feat[:,r].reshape((feat.shape[0],1,1,1024))
